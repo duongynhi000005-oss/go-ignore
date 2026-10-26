@@ -369,7 +369,21 @@ func (m *Matcher) addPatternsFromSource(basePath string, content []byte, source 
 	}
 
 	// Normalize basePath once for consistent rule scoping and warning reporting.
-	normalizedBase := normalizePath(basePath)
+	normalizedBase, ok := normalizeBasePath(basePath)
+	if !ok {
+		w := ParseWarning{
+			Message:  "invalid basePath outside repository root, patterns skipped",
+			BasePath: basePath,
+		}
+		if handler := m.opts.WarningHandler; handler != nil {
+			handler(w)
+		} else {
+			m.mu.Lock()
+			m.retainWarnings([]ParseWarning{w}, basePath)
+			m.mu.Unlock()
+		}
+		return
+	}
 
 	// Parse no more rules than the matcher can still hold. Parsing itself
 	// runs unlocked; the capacity is checked again under the lock below,

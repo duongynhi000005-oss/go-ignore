@@ -70,6 +70,38 @@ func normalizePath(p string) string {
 // normalizeContent prepares .gitignore bytes for parsing the way git's
 // add_patterns does: it strips one leading UTF-8 BOM and drops a CR that
 // precedes LF or ends the content. Any other CR is pattern text.
+// normalizeBasePath canonicalizes a basePath for AddPatterns. It returns
+// ("", true) when basePath names the repository root ("" or "." with any
+// combination of slashes and "./" segments), (normalized, true) for a valid
+// subdirectory inside the root, or ("", false) when basePath contains a null
+// byte or resolves outside the root ("..", "../other", "a/../..").
+func normalizeBasePath(basePath string) (string, bool) {
+	if strings.IndexByte(basePath, 0) >= 0 {
+		return "", false
+	}
+	if normalized := normalizePath(basePath); normalized != "" {
+		return normalized, true
+	}
+	p := basePath
+	if runtime.GOOS == "windows" {
+		p = strings.ReplaceAll(p, "\\", "/")
+	}
+	for {
+		if strings.HasPrefix(p, "/") {
+			p = p[1:]
+		} else if strings.HasPrefix(p, "./") {
+			p = p[2:]
+		} else {
+			break
+		}
+	}
+	p = strings.TrimSuffix(p, "/")
+	if p == "" || p == "." {
+		return "", true
+	}
+	return "", path.Clean(p) == "."
+}
+
 func normalizeContent(content []byte) []byte {
 	content = bytes.TrimPrefix(content, []byte{0xEF, 0xBB, 0xBF})
 

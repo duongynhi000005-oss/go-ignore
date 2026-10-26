@@ -650,3 +650,46 @@ func TestEdgeCases_DeepPath_ManyFloatingRulesCorrect(t *testing.T) {
 		t.Error("a.log is negated and its parents are not excluded; want not ignored")
 	}
 }
+
+func TestEdgeCases_InvalidBasePathRejected(t *testing.T) {
+	invalidBases := []string{
+		"..",
+		"../other",
+		"a/../..",
+		"a/b/../../..",
+		"sub\x00dir",
+	}
+	for _, base := range invalidBases {
+		t.Run(base, func(t *testing.T) {
+			m := New()
+			m.AddPatterns(base, []byte("*.log\n"))
+			if m.Match("top.log", false) {
+				t.Errorf("AddPatterns(%q): top.log matched; invalid basePath must not become root-scoped", base)
+			}
+			if m.RuleCount() != 0 {
+				t.Errorf("AddPatterns(%q): RuleCount() = %d, want 0", base, m.RuleCount())
+			}
+			ws := m.Warnings()
+			if len(ws) != 1 {
+				t.Fatalf("AddPatterns(%q): len(Warnings()) = %d, want 1", base, len(ws))
+			}
+			if ws[0].BasePath != base {
+				t.Errorf("warning BasePath = %q, want %q", ws[0].BasePath, base)
+			}
+		})
+	}
+
+	validRootBases := []string{"", ".", "./", "./.", ".//.", "sub/.."}
+	for _, base := range validRootBases {
+		t.Run("root_"+base, func(t *testing.T) {
+			m := New()
+			m.AddPatterns(base, []byte("*.log\n"))
+			if !m.Match("top.log", false) {
+				t.Errorf("AddPatterns(%q): top.log did not match root-scoped rule", base)
+			}
+			if len(m.Warnings()) != 0 {
+				t.Errorf("AddPatterns(%q): unexpected warnings: %v", base, m.Warnings())
+			}
+		})
+	}
+}
