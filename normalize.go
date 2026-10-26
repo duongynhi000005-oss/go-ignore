@@ -8,7 +8,7 @@ import (
 )
 
 // normalizePath canonicalizes a path for matching: on Windows backslashes
-// become slashes; repeated and trailing slashes and leading "./" are removed;
+// become slashes; repeated, leading, and trailing slashes and leading "./" are removed;
 // and "."/".." are resolved via path.Clean so "src/../secret.txt" cannot bypass
 // a "src/"-scoped rule. A path containing a null byte, or one resolving above
 // the root, returns "".
@@ -45,8 +45,14 @@ func normalizePath(p string) string {
 		p = b.String()
 	}
 
-	for strings.HasPrefix(p, "./") { // repeat for idempotency
-		p = p[2:]
+	for { // repeat for idempotency
+		if strings.HasPrefix(p, "/") {
+			p = p[1:]
+		} else if strings.HasPrefix(p, "./") {
+			p = p[2:]
+		} else {
+			break
+		}
 	}
 
 	p = strings.TrimSuffix(p, "/")
